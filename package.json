@@ -1,0 +1,14 @@
+{
+  "name": "tw-chat-server-vercel",
+  "version": "1.0.0",
+  "description": "A simple WebSocket server for TurboWarp deployed on Vercel",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "ws": "^8.11.0"
+  },
+  "author": "",
+  "license": "ISC"
+}
