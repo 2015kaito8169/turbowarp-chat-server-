@@ -1,52 +1,52 @@
 const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 8080;
-const MAX_CLIENTS = 20; // 💡 最大接続人数を20人に設定
-const MAX_MESSAGE_LENGTH = 200; // 💡 最大メッセージ長を200文字に設定
-const COOLDOWN_TIME = 1000; // 💡 連投制限: 1秒 (1000ミリ秒)
+const MAX_CLIENTS = 20; // 最大接続人数
+const MAX_MESSAGE_LENGTH = 200; // 最大メッセージ長
+const COOLDOWN_TIME = 1000; // 連投制限: 1秒
 
 const wss = new WebSocket.Server({ port: PORT });
 const clients = new Set();
-// 各クライアントの前回送信時刻を記録するマップ
 const lastMessageTime = new Map();
 
+// 💡 追加した禁止ワード・ドメインリスト
+const forbiddenWords = [
+    '.net', '.jp', '.co.jp', '大麻', 'コカイン', 'MDMA', 'ヘロイン', 'LSD', 
+    '向精神薬', '有機溶剤', '海賊版', '殺すぞ', '後で覚悟しとけ', '殺す', 'ハッキング'
+];
+
 wss.on('connection', ws => {
-  // 1. 人数制限のチェック
   if (clients.size >= MAX_CLIENTS) {
     console.log('Server is full. Connection rejected.');
-    ws.close(1013, 'サーバーが満員です'); // 理由コード 1013 (TOO_BIG)
+    ws.close(1013, 'サーバーが満員です');
     return;
   }
 
   clients.add(ws);
-  // 初回接続時のタイムスタンプを記録
   lastMessageTime.set(ws, Date.now());
   console.log('Client connected. Total clients:', clients.size);
 
   ws.on('message', message => {
     const messageString = message.toString();
 
-    // 2. メッセージ長さ制限のチェック
     if (messageString.length > MAX_MESSAGE_LENGTH) {
       console.log('Message too long. Rejected.');
-      return; // 転送しない
+      return;
     }
 
-    // 3. 連投制限のチェック
     const now = Date.now();
     const lastTime = lastMessageTime.get(ws);
     if (lastTime && (now - lastTime) < COOLDOWN_TIME) {
       console.log('Cooldown active. Message rejected.');
-      return; // 転送しない
+      return;
     }
-    // 最終送信時刻を更新
     lastMessageTime.set(ws, now);
 
-    // 4. 禁止ワードのチェック（既存のロジック）
-    const forbiddenWords = ['死ね', 'バカ','はなくそにき','生きてる価値ない','住所を教えて', ];
+    // 💡 禁止ワードチェックの強化 (大文字小文字を区別しないようにtoLowerCase()を使用)
+    const lowerCaseMessage = messageString.toLowerCase();
     let isViolation = false;
     for (const word of forbiddenWords) {
-      if (messageString.includes(word)) {
+      if (lowerCaseMessage.includes(word.toLowerCase())) {
         isViolation = true;
         break;
       }
@@ -54,13 +54,12 @@ wss.on('connection', ws => {
 
     if (isViolation) {
       console.log('Violation detected. Closing connection.');
-      ws.close(1008, '利用規約違反により切断されました'); // 理由コード 1008 (POLICY_VIOLATION)
+      ws.close(1008, '利用規約違反により切断されました');
       clients.delete(ws);
       lastMessageTime.delete(ws);
       return;
     }
 
-    // 5. 全員にブロードキャスト
     clients.forEach(client => {
       if (client !== ws && client.readyState === WebSocket.OPEN) {
         client.send(messageString);
@@ -70,7 +69,7 @@ wss.on('connection', ws => {
 
   ws.on('close', () => {
     clients.delete(ws);
-    lastMessageTime.delete(ws); // 切断時にマップから削除
+    lastMessageTime.delete(ws);
     console.log('Client disconnected. Total clients:', clients.size);
   });
 
